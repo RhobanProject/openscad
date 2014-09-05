@@ -101,6 +101,7 @@
 #include "cgal.h"
 #include "cgalworker.h"
 #include "cgalutils.h"
+#include "dumpnode.h"
 
 #endif // ENABLE_CGAL
 
@@ -893,7 +894,9 @@ void MainWindow::instantiateRoot()
 			PRINT("ERROR: Compilation failed!");
 		}
 		if (this->procevents) QApplication::processEvents();
-	}
+	} else {
+        dump_nodes(this->root_node);
+    }
 }
 
 /*!

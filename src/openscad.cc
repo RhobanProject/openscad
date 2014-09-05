@@ -39,6 +39,7 @@
 #include "PlatformUtils.h"
 #include "LibraryInfo.h"
 #include "nodedumper.h"
+#include "dumpnode.h"
 #include "CocoaUtils.h"
 
 #include <string>
@@ -418,6 +419,10 @@ int cmdline(const char *deps_output_file, const std::string &filename, Camera &c
 				return 1;
 			}
 		}
+
+        if (root_node) {
+            dump_nodes(root_node);
+        }
 
 		if (stl_output_file) {
 			if (!checkAndExport(root_geom, 3, OPENSCAD_STL, stl_output_file))

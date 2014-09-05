@@ -33,7 +33,7 @@
 #include "printutils.h"
 #include <sstream>
 #include "mathc99.h"
-
+#include "dumpnode.h"
 
 #define foreach BOOST_FOREACH
 
@@ -48,7 +48,8 @@ public: // types
 		ASSIGN,
 		FOR,
 		INT_FOR,
-		IF
+		IF,
+        DUMP
     };
 public: // methods
 	ControlModule(Type type)
@@ -155,7 +156,7 @@ AbstractNode* ControlModule::getChild(const Value& value, const EvalContext* mod
 	return modulectx->getChild(n)->evaluate(modulectx);
 }
 
-AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleInstantiation *inst, const EvalContext *evalctx) const
+AbstractNode *ControlModule::instantiate(const Context* ctx, const ModuleInstantiation *inst, const EvalContext *evalctx) const
 {
 	AbstractNode *node = NULL;
 
@@ -257,6 +258,11 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 	else
 		node = new AbstractNode(inst);
 
+    if (type == DUMP)
+    {
+        node = new DumpNode(inst);
+    }
+
 	if (type == ECHO)
 	{
 		std::stringstream msg;
@@ -315,4 +321,5 @@ void register_builtin_control()
 	Builtins::init("for", new ControlModule(ControlModule::FOR));
 	Builtins::init("intersection_for", new ControlModule(ControlModule::INT_FOR));
 	Builtins::init("if", new ControlModule(ControlModule::IF));
+    Builtins::init("dump", new ControlModule(ControlModule::DUMP));
 }
