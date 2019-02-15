@@ -27,6 +27,7 @@
 #include "function.h"
 #include "evalcontext.h"
 #include "expression.h"
+#include "printutils.h"
 
 AbstractFunction::~AbstractFunction()
 {
@@ -45,24 +46,22 @@ ValuePtr UserFunction::evaluate(const Context *ctx, const EvalContext *evalctx) 
 {
 	if (!expr) return ValuePtr::undefined;
 	Context c(ctx);
-	c.setVariables(definition_arguments, evalctx);
+	c.setVariables(evalctx, definition_arguments);
 	ValuePtr result = expr->evaluate(&c);
 
 	return result;
 }
 
-std::string UserFunction::dump(const std::string &indent, const std::string &name) const
+void UserFunction::print(std::ostream &stream, const std::string &indent) const
 {
-	std::stringstream dump;
-	dump << indent << "function " << name << "(";
+	stream << indent << "function " << name << "(";
 	for (size_t i=0; i < definition_arguments.size(); i++) {
 		const Assignment &arg = definition_arguments[i];
-		if (i > 0) dump << ", ";
-		dump << arg.name;
-		if (arg.expr) dump << " = " << *arg.expr;
+		if (i > 0) stream << ", ";
+		stream << arg.name;
+		if (arg.expr) stream << " = " << *arg.expr;
 	}
-	dump << ") = " << *expr << ";\n";
-	return dump.str();
+	stream << ") = " << *expr << ";\n";
 }
 
 class FunctionTailRecursion : public UserFunction
@@ -82,22 +81,26 @@ public:
 			invert(invert), op(expr), call(call), endexpr(endexpr) {
 	}
 
-	virtual ~FunctionTailRecursion() { }
+	~FunctionTailRecursion() { }
 
-	virtual ValuePtr evaluate(const Context *ctx, const EvalContext *evalctx) const {
+	ValuePtr evaluate(const Context *ctx, const EvalContext *evalctx) const override {
 		if (!expr) return ValuePtr::undefined;
 		
 		Context c(ctx);
-		c.setVariables(definition_arguments, evalctx);
+		c.setVariables(evalctx, definition_arguments);
 		
-		EvalContext ec(&c, call->arguments);
+		EvalContext ec(&c, call->arguments, loc);
 		Context tmp(&c);
 		unsigned int counter = 0;
 		while (invert ^ this->op->cond->evaluate(&c)) {
-			tmp.setVariables(definition_arguments, &ec);
+			tmp.setVariables(&ec, definition_arguments);
 			c.apply_variables(tmp);
 			
-			if (counter++ == 1000000) throw RecursionException::create("function", this->name);
+			if (counter++ == 1000000){
+				std::string locs = loc.toRelativeString(ctx->documentPath());
+				PRINTB("ERROR: Recursion detected calling function '%s' %s", this->name % locs);
+				throw RecursionException::create("function", this->name,loc);
+			}
 		}
 		
 		ValuePtr result = endexpr->evaluate(&c);
@@ -131,11 +134,4 @@ BuiltinFunction::~BuiltinFunction()
 ValuePtr BuiltinFunction::evaluate(const Context *ctx, const EvalContext *evalctx) const
 {
 	return eval_func(ctx, evalctx);
-}
-
-std::string BuiltinFunction::dump(const std::string &indent, const std::string &name) const
-{
-	std::stringstream dump;
-	dump << indent << "builtin function " << name << "();\n";
-	return dump.str();
 }

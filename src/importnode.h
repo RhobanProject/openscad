@@ -6,6 +6,7 @@
 enum class ImportType {
 	UNKNOWN,
 	AMF,
+	_3MF,
 	STL,
 	OFF,
 	SVG,
@@ -18,15 +19,16 @@ class ImportNode : public LeafNode
 public:
 	VISITABLE();
 	ImportNode(const ModuleInstantiation *mi, ImportType type) : LeafNode(mi), type(type) { }
-	virtual std::string toString() const;
-	virtual std::string name() const;
+	std::string toString() const override;
+	std::string name() const override;
 
 	ImportType type;
 	Filename filename;
 	std::string layername;
 	int convexity;
+	bool center;
 	double fn, fs, fa;
 	double origin_x, origin_y, scale;
 	double width, height;
-	virtual const class Geometry *createGeometry() const;
+	const class Geometry *createGeometry() const override;
 };

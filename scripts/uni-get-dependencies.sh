@@ -11,7 +11,7 @@ get_fedora_deps_yum()
   boost-devel mpfr-devel gmp-devel glew-devel CGAL-devel gcc gcc-c++ pkgconfig \
   opencsg-devel git libXmu-devel curl imagemagick ImageMagick glib2-devel make \
   xorg-x11-server-Xvfb gettext qscintilla-devel qscintilla-qt5-devel \
-  mesa-dri-drivers
+  mesa-dri-drivers double-conversion-devel
 }
 
 get_fedora_deps_dnf()
@@ -21,7 +21,7 @@ get_fedora_deps_dnf()
   boost-devel mpfr-devel gmp-devel glew-devel CGAL-devel gcc gcc-c++ pkgconfig \
   opencsg-devel git libXmu-devel curl ImageMagick glib2-devel make \
   xorg-x11-server-Xvfb gettext qscintilla-devel qscintilla-qt5-devel \
-  mesa-dri-drivers
+  mesa-dri-drivers libzip-devel ccache qt5-qtmultimedia-devel double-conversion-devel
  dnf -y install libxml2-devel
  dnf -y install libffi-devel
  dnf -y install redhat-rpm-config
@@ -44,7 +44,7 @@ get_freebsd_deps()
  pkg_add -r bison boost-libs cmake git bash eigen3 flex gmake gmp mpfr \
   xorg libGLU libXmu libXi xorg-vfbserver glew \
   qt4-corelib qt4-gui qt4-moc qt4-opengl qt4-qmake qt4-rcc qt4-uic \
-  opencsg cgal curl imagemagick glib2-devel gettext
+  opencsg cgal curl imagemagick glib2-devel gettext libdouble-conversion-3.0.0
 }
 
 get_netbsd_deps()
@@ -56,14 +56,29 @@ get_netbsd_deps()
 
 get_opensuse_deps()
 {
- zypper install libeigen3-devel mpfr-devel gmp-devel boost-devel \
-  libqt4-devel glew-devel cmake git bison flex cgal-devel curl \
-  glib2-devel gettext freetype-devel harfbuzz-devel libqscintilla-devel \
-  xvfb-run imagemagick opencsg-devel
-  echo if you are missing opencsg, please add the -graphics- repository
-  echo find your version from cat /etc/issue, then replace it below, then run
-  echo " zypper ar -f http://download.opensuse.org/repositories/graphics/openSUSE_13.2 graphics"
-  echo " zypper install opencsg-devel"
+ zypper install  mpfr-devel gmp-devel boost-devel \
+  glew-devel cmake git bison flex cgal-devel curl \
+  glib2-devel gettext freetype-devel harfbuzz-devel  \
+  libqscintilla-qt5-devel libqt5-qtbase-devel libQt5OpenGL-devel \
+  xvfb-run libzip-devel libqt5-qtmultimedia-devel double-conversion-devel
+ zypper install libeigen3-devel
+ if [ $? -ne 0 ]; then
+  zypper install libeigen3
+ fi
+ zypper install ImageMagick
+ if [ $? -ne 0 ]; then
+  zypper install imagemagick
+ fi
+ zypper install opencsg-devel
+ if [ $? -ne 0 ]; then
+  pver=`cat /etc/os-release | grep -i pretty_name | sed s/PRETTY_NAME=//g`
+  pver=`echo $pver | sed s/\"//g | sed s/\ /_/g `
+  echo attempting to add graphics repository for opencsg...
+  set +x
+  zypper ar -f http://download.opensuse.org/repositories/graphics/$pver graphics
+  zypper install opencsg-devel
+  set -x
+ fi
 }
 
 get_mageia_deps()
@@ -71,7 +86,8 @@ get_mageia_deps()
  urpmi ctags
  urpmi task-c-devel task-c++-devel libqt4-devel libgmp-devel \
   libmpfr-devel libboost-devel eigen3-devel libglew-devel bison flex \
-  cmake imagemagick glib2-devel python curl git x11-server-xvfb gettext
+  cmake imagemagick glib2-devel python curl git x11-server-xvfb gettext \
+  double-conversion-devel
 }
 
 get_debian_deps()
@@ -81,9 +97,9 @@ get_debian_deps()
   libxmu-dev cmake bison flex git-core libboost-all-dev \
   libmpfr-dev libboost-dev libglew-dev \
   libeigen3-dev libcgal-dev libopencsg-dev libgmp3-dev libgmp-dev \
-  imagemagick libfreetype6-dev \
+  imagemagick libfreetype6-dev libdouble-conversion-dev \
   gtk-doc-tools libglib2.0-dev gettext xvfb pkg-config ragel
- apt-get -y install libxi-dev libfontconfig-dev
+ apt-get -y install libxi-dev libfontconfig-dev libzip-dev
 }
 
 get_debian_7_deps()
@@ -127,7 +143,7 @@ get_qt4or5_deps_debian()
   fi
 
   if [ $useqt = 5 ]; then
-    apt-get -y install qtbase5-dev libqt5scintilla2-dev libqt5opengl5-dev qt5-qmake
+    apt-get -y install qtbase5-dev libqt5scintilla2-dev libqt5opengl5-dev qtmultimedia5-dev libqt5multimedia5-plugins qt5-qmake
   else
     apt-get -y install libqt4-dev libqscintilla2-dev libqt4-opengl-dev
   fi
@@ -154,8 +170,11 @@ get_ubuntu_14_deps()
 
 get_arch_deps()
 {
-  pacman -S --noconfirm qt5 qscintilla-qt5 cgal gmp mpfr boost \
-    opencsg glew eigen glib2 fontconfig freetype2 harfbuzz bison flex make
+  pacman -S --noconfirm \
+	base-devel gcc bison flex make libzip \
+	qt5 qscintilla-qt5 cgal gmp mpfr boost opencsg \
+	glew eigen glib2 fontconfig freetype2 harfbuzz \
+	double-conversion
 }
 
 get_ubuntu_16_deps()
@@ -177,6 +196,16 @@ get_neon_deps()
   echo on KDE Neon please use qmake-qt4 to build
 }
 
+get_solus_deps()
+{
+  eopkg -y it -c system.devel
+  eopkg -y install qt5-base-devel qt5-multimedia-devel qscintilla-devel \
+	CGAL-devel gmp-devel mpfr-devel glib2-devel libboost-devel \
+	opencsg-devel glew-devel eigen3 \
+	fontconfig-devel freetype2-devel harfbuzz-devel libzip-devel \
+	bison flex
+}
+
 unknown()
 {
  echo "Unknown system type. Please install the dependency packages listed"
@@ -194,6 +223,8 @@ if [ -e /etc/issue ]; then
   get_debian_deps
  elif [ "`grep -i elementary.*freya /etc/issue`" ]; then
   get_ubuntu_14_deps
+ elif [ "`grep ID=.solus /etc/os-release`" ]; then
+  get_solus_deps
  elif [ "`grep -i debian.GNU.Linux.7 /etc/issue`" ]; then
   get_debian_7_deps
  elif [ "`grep -i debian /etc/issue`" ]; then
@@ -202,8 +233,10 @@ if [ -e /etc/issue ]; then
   get_debian_deps
  elif [ "`grep -i linux.mint.2 /etc/issue`" ]; then
   get_ubuntu_14_deps
- elif [ "`grep -i linux.mint.1[789] /etc/issue`" ]; then
+ elif [ "`grep -i linux.mint.17 /etc/issue`" ]; then
   get_ubuntu_14_deps
+ elif [ "`grep -i linux.mint.1[89] /etc/issue`" ]; then
+  get_ubuntu_16_deps
  elif [ "`grep -i mint /etc/issue`" ]; then
   get_debian_7_deps
  elif [ "`grep -i suse /etc/issue`" ]; then

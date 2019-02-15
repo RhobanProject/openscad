@@ -6,10 +6,13 @@ class ParameterSpinBox :public ParameterVirtualWidget
 {
 	Q_OBJECT
 public:
-	ParameterSpinBox(ParameterObject *parameterobject, bool showDescription);
-	void setValue();
-	void setParameterFocus();
+	ParameterSpinBox(QWidget *parent, ParameterObject *parameterobject, DescLoD descriptionLoD);
+	void setValue() override;
 
 protected slots:
 	void onChanged(double);
+	void onEditingFinished();
+
+private:
+	bool volatile suppressUpdate; 
 };

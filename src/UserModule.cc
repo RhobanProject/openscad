@@ -32,7 +32,7 @@
 #include "stackcheck.h"
 #include "modcontext.h"
 #include "expression.h"
-
+#include "printutils.h"
 #include <sstream>
 
 std::deque<std::string> UserModule::module_stack;
@@ -40,7 +40,9 @@ std::deque<std::string> UserModule::module_stack;
 AbstractNode *UserModule::instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const
 {
 	if (StackCheck::inst()->check()) {
-		throw RecursionException::create("module", inst->name());
+		std::string locs = loc.toRelativeString(ctx->documentPath());
+		PRINTB("ERROR: Recursion detected calling module '%s' %s", inst->name() % locs);
+		throw RecursionException::create("module", inst->name(),loc);
 		return nullptr;
 	}
 
@@ -67,24 +69,22 @@ AbstractNode *UserModule::instantiate(const Context *ctx, const ModuleInstantiat
 	return node;
 }
 
-std::string UserModule::dump(const std::string &indent, const std::string &name) const
+void UserModule::print(std::ostream &stream, const std::string &indent) const
 {
-	std::stringstream dump;
 	std::string tab;
-	if (!name.empty()) {
-		dump << indent << "module " << name << "(";
+	if (!this->name.empty()) {
+		stream << indent << "module " << this->name << "(";
 		for (size_t i=0; i < this->definition_arguments.size(); i++) {
 			const Assignment &arg = this->definition_arguments[i];
-			if (i > 0) dump << ", ";
-			dump << arg.name;
-			if (arg.expr) dump << " = " << *arg.expr;
+			if (i > 0) stream << ", ";
+			stream << arg.name;
+			if (arg.expr) stream << " = " << *arg.expr;
 		}
-		dump << ") {\n";
+		stream << ") {\n";
 		tab = "\t";
 	}
-	dump << scope.dump(indent + tab);
-	if (!name.empty()) {
-		dump << indent << "}\n";
+	scope.print(stream, indent + tab);
+	if (!this->name.empty()) {
+		stream << indent << "}\n";
 	}
-	return dump.str();
 }

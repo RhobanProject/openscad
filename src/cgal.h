@@ -12,14 +12,14 @@
 #undef NDEBUG
 #endif
 
-#include "CGAL_workaround_Mark_bounded_volumes.h" // This file must be included prior to CGAL/Nef_polyhedron_3.h
+#include "ext/CGAL/CGAL_workaround_Mark_bounded_volumes.h" // This file must be included prior to CGAL/Nef_polyhedron_3.h
 #include <CGAL/Gmpq.h>
 #include <CGAL/Extended_cartesian.h>
 #include <CGAL/Nef_polyhedron_2.h>
 #include <CGAL/Cartesian.h>
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Nef_polyhedron_3.h>
-#include "CGAL_Nef3_workaround.h"
+#include "ext/CGAL/CGAL_Nef3_workaround.h"
 #include <CGAL/IO/Polyhedron_iostream.h>
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Polygon_2.h>
@@ -51,6 +51,7 @@ typedef CGAL_Nef_polyhedron3::Aff_transformation_3 CGAL_Aff_transformation;
 typedef CGAL::Polyhedron_3<CGAL_Kernel3> CGAL_Polyhedron;
 
 typedef CGAL::Point_3<CGAL_Kernel3> CGAL_Point_3;
+typedef CGAL::Triangle_3<CGAL_Kernel3> CGAL_Triangle_3;
 typedef CGAL::Iso_cuboid_3<CGAL_Kernel3> CGAL_Iso_cuboid_3;
 typedef std::vector<CGAL_Point_3> CGAL_Polygon_3;
 

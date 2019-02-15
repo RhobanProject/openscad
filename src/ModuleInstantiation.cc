@@ -1,7 +1,10 @@
 #include "ModuleInstantiation.h"
 #include "evalcontext.h"
 #include "expression.h"
+#include "exceptions.h"
+#include "printutils.h"
 #include <boost/filesystem.hpp>
+
 namespace fs = boost::filesystem;
 
 ModuleInstantiation::~ModuleInstantiation()
@@ -28,60 +31,63 @@ std::string ModuleInstantiation::getAbsolutePath(const std::string &filename) co
 	}
 }
 
-std::string ModuleInstantiation::dump(const std::string &indent) const
+void ModuleInstantiation::print(std::ostream &stream, const std::string &indent) const
 {
-	std::stringstream dump;
-	dump << indent;
-	dump << modname + "(";
+	stream << indent;
+	stream << modname + "(";
 	for (size_t i=0; i < this->arguments.size(); i++) {
 		const Assignment &arg = this->arguments[i];
-		if (i > 0) dump << ", ";
-		if (!arg.name.empty()) dump << arg.name << " = ";
-		dump << *arg.expr;
+		if (i > 0) stream << ", ";
+		if (!arg.name.empty()) stream << arg.name << " = ";
+		stream << *arg.expr;
 	}
 	if (scope.numElements() == 0) {
-		dump << ");\n";
-	} else if (scope.numElements() == 1) {
-		dump << ") ";
-		dump << scope.dump("");
+		stream << ");\n";
+	} else if (scope.numElements() == 1) {	
+		stream << ") ";
+		scope.print(stream, "");
 	} else {
-		dump << ") {\n";
-		dump << scope.dump(indent + "\t");
-		dump << indent << "}\n";
+		stream << ") {\n";
+		scope.print(stream, indent + "\t");
+		stream << indent << "}\n";
 	}
-	return dump.str();
 }
 
-std::string IfElseModuleInstantiation::dump(const std::string &indent) const
+void IfElseModuleInstantiation::print(std::ostream &stream, const std::string &indent) const
 {
-	std::stringstream dump;
-	dump << ModuleInstantiation::dump(indent);
-	dump << indent;
+	ModuleInstantiation::print(stream, indent);
+	stream << indent;
 	if (else_scope.numElements() > 0) {
-		dump << indent << "else ";
+		stream << indent << "else ";
 		if (else_scope.numElements() == 1) {
-			dump << else_scope.dump("");
+			else_scope.print(stream, "");
 		}
 		else {
-			dump << "{\n";
-			dump << else_scope.dump(indent + "\t");
-			dump << indent << "}\n";
+			stream << "{\n";
+			else_scope.print(stream, indent + "\t");
+			stream << indent << "}\n";
 		}
 	}
-	return dump.str();
 }
 
 AbstractNode *ModuleInstantiation::evaluate(const Context *ctx) const
 {
-	EvalContext c(ctx, this->arguments, &this->scope);
+	EvalContext c(ctx, this->arguments, this->loc, &this->scope);
 
 #if 0 && DEBUG
 	PRINT("New eval ctx:");
 	c.dump(nullptr, this);
 #endif
-
-	AbstractNode *node = ctx->instantiate_module(*this, &c); // Passes c as evalctx
-	return node;
+	try{
+		AbstractNode *node = ctx->instantiate_module(*this, &c); // Passes c as evalctx
+		return node;
+	}catch(EvaluationException &e){
+		if(e.traceDepth>0){
+			PRINTB("TRACE: called by '%s', %s.", name() % this->loc.toRelativeString(ctx->documentPath()));
+			e.traceDepth--;
+		}
+		throw;
+	}
 }
 
 std::vector<AbstractNode*> ModuleInstantiation::instantiateChildren(const Context *evalctx) const

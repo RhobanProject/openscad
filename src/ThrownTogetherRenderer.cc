@@ -60,12 +60,7 @@ void ThrownTogetherRenderer::renderChainObject(const CSGChainObject &csgobj, boo
 {
 	if (this->geomVisitMark[std::make_pair(csgobj.leaf->geom.get(), &csgobj.leaf->matrix)]++ > 0) return;
 	const Color4f &c = csgobj.leaf->color;
-	csgmode_e csgmode = csgmode_e(
-		(highlight_mode ? 
-		 CSGMODE_HIGHLIGHT :
-		 (background_mode ? CSGMODE_BACKGROUND : CSGMODE_NORMAL)) |
-		(type == OpenSCADOperator::DIFFERENCE ? CSGMODE_DIFFERENCE : CSGMODE_NONE));
-
+	csgmode_e csgmode = get_csgmode(highlight_mode, background_mode, type);
 	ColorMode colormode = ColorMode::NONE;
 	ColorMode edge_colormode = ColorMode::NONE;
 	
@@ -136,6 +131,6 @@ BoundingBox ThrownTogetherRenderer::getBoundingBox() const
 	BoundingBox bbox;
 	if (this->root_products) bbox = this->root_products->getBoundingBox();
 	if (this->highlight_products) bbox.extend(this->highlight_products->getBoundingBox());
-//	if (this->background_products) bbox.extend(this->background_products->getBoundingBox());
+	if (this->background_products) bbox.extend(this->background_products->getBoundingBox());
 	return bbox;
 }

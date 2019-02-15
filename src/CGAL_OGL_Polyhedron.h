@@ -30,7 +30,7 @@
 
 #include "colormap.h"
 #include "rendersettings.h"
-#include "OGL_helper.h"
+#include "ext/CGAL/OGL_helper.h"
 #include "printutils.h"
 
 using CGAL::OGL::SNC_BOUNDARY;
@@ -78,21 +78,21 @@ public:
 	}
 
 	// overrides function in OGL_helper.h
-	CGAL::Color getVertexColor(Vertex_iterator v) const {
+	CGAL::Color getVertexColor(Vertex_iterator v) const override {
 		PRINTD("getVertexColor");
 		CGAL::Color c = v->mark() ? colors[CGALColorIndex::UNMARKED_VERTEX_COLOR] : colors[CGALColorIndex::MARKED_VERTEX_COLOR];
 		return c;
 	}
 
 	// overrides function in OGL_helper.h
-	CGAL::Color getEdgeColor(Edge_iterator e) const {
+	CGAL::Color getEdgeColor(Edge_iterator e) const override {
 		PRINTD("getEdgeColor");
 		CGAL::Color c = e->mark() ? colors[CGALColorIndex::UNMARKED_EDGE_COLOR] : colors[CGALColorIndex::MARKED_EDGE_COLOR];
 		return c;
 	}
 
 	// overrides function in OGL_helper.h
-	CGAL::Color getFacetColor(Halffacet_iterator f, bool /*is_back_facing*/) const {
+	CGAL::Color getFacetColor(Halffacet_iterator f, bool /*is_back_facing*/) const override {
 		PRINTD("getFacetColor");
 		CGAL::Color c = f->mark() ? colors[CGALColorIndex::UNMARKED_FACET_COLOR] : colors[CGALColorIndex::MARKED_FACET_COLOR];
 		return c;
@@ -110,7 +110,7 @@ public:
 	}
 
 	// set this->colors based on the given colorscheme. vertex colors
-	// are not set here as colorscheme doesnt yet hold vertex colors.
+	// are not set here as colorscheme doesn't yet hold vertex colors.
 	void setColorScheme(const ColorScheme &cs) {
 		PRINTD("setColorScheme");
 		setColor(CGALColorIndex::MARKED_FACET_COLOR, ColorMap::getColor(cs, RenderColor::CGAL_FACE_BACK_COLOR));

@@ -9,9 +9,14 @@
 #ifndef Q_MOC_RUN
 #include <boost/variant.hpp>
 #include <boost/lexical_cast.hpp>
+#include <glib.h>
+
 #endif
 #include <cstdint>
 #include "memory.h"
+
+class tostring_visitor;
+class tostream_visitor;
 
 class QuotedString : public std::string
 {
@@ -92,6 +97,7 @@ public:
   
 	friend class chr_visitor;
 	friend class tostring_visitor;
+	friend class tostream_visitor;
 	friend class bracket_visitor;
 };
 
@@ -133,6 +139,26 @@ public:
 private:
 };
 
+
+class str_utf8_wrapper : public std::string
+{
+public:
+	str_utf8_wrapper() : std::string(), cached_len(-1) { }
+	str_utf8_wrapper( const std::string& s ) : std::string( s ), cached_len(-1) { }
+	str_utf8_wrapper( size_t n, char c ) : std::string(n, c), cached_len(-1) { }
+	~str_utf8_wrapper() {}
+	
+	glong get_utf8_strlen() const {
+		if (cached_len < 0) {
+			cached_len = g_utf8_strlen(this->c_str(), this->size());
+		}
+		return cached_len;
+	};
+private:
+	mutable glong cached_len;
+};
+
+
 class Value
 {
 public:
@@ -169,11 +195,16 @@ public:
   bool getFiniteDouble(double &v) const;
   bool toBool() const;
   std::string toString() const;
+  std::string toString(const tostring_visitor *visitor) const;
   std::string toEchoString() const;
+  std::string toEchoString(const tostring_visitor *visitor) const;
+  void toStream(std::ostringstream &stream) const;
+  void toStream(const tostream_visitor *visitor) const;
   std::string chrString() const;
   const VectorType &toVector() const;
   bool getVec2(double &x, double &y, bool ignoreInfinite = false) const;
-  bool getVec3(double &x, double &y, double &z, double defaultval = 0.0) const;
+  bool getVec3(double &x, double &y, double &z) const;
+  bool getVec3(double &x, double &y, double &z, double defaultval) const;
   RangeType toRange() const;
 
 	operator bool() const { return this->toBool(); }
@@ -199,7 +230,7 @@ public:
     return stream;
   }
 
-  typedef boost::variant< boost::blank, bool, double, std::string, VectorType, RangeType > Variant;
+  typedef boost::variant< boost::blank, bool, double, str_utf8_wrapper, VectorType, RangeType > Variant;
 
 private:
   static Value multvecnum(const Value &vecval, const Value &numval);
@@ -209,3 +240,4 @@ private:
   Variant value;
 };
 
+void utf8_split(const std::string& str, std::function<void(ValuePtr)> f);

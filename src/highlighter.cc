@@ -30,7 +30,7 @@
 
  Speed Note:
 
- setFormat() is very slow. normally this doesnt matter because we
+ setFormat() is very slow. normally this doesn't matter because we
  only highlight a block or two at once. But when OpenSCAD first starts,
  QT automagically calls 'highlightBlock' on every single textblock in the file
  even if it's not visible in the window. On a large file (50,000 lines) this
@@ -208,7 +208,7 @@ void Highlighter::assignFormatsToTokens(const QString &s)
 		QStringList::iterator it;
 		for ( it = tokentypes[toktype].begin(); it < tokentypes[toktype].end(); ++it) {
 			QString token = *it;
-			//PRINTB("set format for %s: type %s", token.toStdString()%toktype.toStdString() );;
+			//PRINTB("set format for %s: type %s", token.toStdString()%toktype.toStdString() );
 			tokenFormats[ token ] = typeformats [ toktype ];
 		}
 	}
@@ -218,8 +218,10 @@ Highlighter::Highlighter(QTextDocument *parent)
 		: QSyntaxHighlighter(parent)
 {
 	tokentypes["operator"] << "=" << "!" << "&&" << "||" << "+" << "-" << "*" << "/" << "%" << "!" << "#" << ";";
-	tokentypes["math"] << "abs" << "sign" << "acos" << "asin" << "atan" << "atan2" << "sin" << "cos" << "floor" << "round" << "ceil" << "ln" << "log" << "lookup" << "min" << "max" << "pow" << "sqrt" << "exp" << "rands";
-	tokentypes["keyword"] << "module" << "function" << "for" << "intersection_for" << "if" << "assign" << "echo"<< "search" << "str" << "let" << "each";
+	tokentypes["math"] << "abs" << "sign" << "acos" << "asin" << "atan" << "atan2" << "sin" << "cos" << "floor" << "round" << "ceil"
+                           << "ln" << "log" << "lookup" << "min" << "max" << "pow" << "sqrt" << "exp" << "rands" << "chr" << "ord"
+                           << "is_undef" << "is_list" << "is_num" << "is_bool" << "is_string";
+	tokentypes["keyword"] << "module" << "function" << "for" << "intersection_for" << "if" << "assign" << "echo"<< "search" << "str" << "let" << "each" << "assert";
 	tokentypes["transform"] << "scale" << "translate" << "rotate" << "multmatrix" << "color" << "projection" << "hull" << "resize" << "mirror" << "minkowski";
 	tokentypes["csgop"]	<< "union" << "intersection" << "difference" << "render";
 	tokentypes["prim3d"] << "cube" << "cylinder" << "sphere" << "polyhedron";

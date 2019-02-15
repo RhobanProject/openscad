@@ -46,7 +46,7 @@ class OffsetModule : public AbstractModule
 {
 public:
 	OffsetModule() { }
-	virtual AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const;
+	AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const override;
 };
 
 AbstractNode *OffsetModule::instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const
@@ -54,9 +54,10 @@ AbstractNode *OffsetModule::instantiate(const Context *ctx, const ModuleInstanti
 	auto node = new OffsetNode(inst);
 
 	AssignmentList args{Assignment("r")};
+	AssignmentList optargs{Assignment("delta"),Assignment("chamfer")};
 
 	Context c(ctx);
-	c.setVariables(args, evalctx);
+	c.setVariables(evalctx, args, optargs);
 	inst->scope.apply(*evalctx);
 
 	node->fn = c.lookup_variable("$fn")->toDouble();
@@ -91,7 +92,7 @@ AbstractNode *OffsetModule::instantiate(const Context *ctx, const ModuleInstanti
 
 std::string OffsetNode::toString() const
 {
-	std::stringstream stream;
+	std::ostringstream stream;
 
 	bool isRadius = this->join_type == ClipperLib::jtRound;
 	auto var = isRadius ? "(r = " : "(delta = ";

@@ -11,12 +11,14 @@ public:
 	OpenSCADApp(int &argc ,char **argv);
 	~OpenSCADApp();
 
-	bool notify(QObject *object, QEvent *event);
+	bool notify(QObject *object, QEvent *event) override;
+        void workaround_QTBUG_65592(QObject *object, QEvent *event);
 	void requestOpenFile(const QString &filename);
 
 public slots:
 	void showFontCacheDialog();
 	void hideFontCacheDialog();
+	void releaseQSettingsCached();
 
 public:
 	WindowManager windowManager;

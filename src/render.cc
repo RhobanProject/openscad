@@ -39,7 +39,7 @@ class RenderModule : public AbstractModule
 {
 public:
 	RenderModule() { }
-	virtual AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const;
+	AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const override;
 };
 
 AbstractNode *RenderModule::instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const
@@ -49,7 +49,7 @@ AbstractNode *RenderModule::instantiate(const Context *ctx, const ModuleInstanti
 	AssignmentList args{Assignment("convexity")};
 
 	Context c(ctx);
-	c.setVariables(args, evalctx);
+	c.setVariables(evalctx, args);
 	inst->scope.apply(*evalctx);
 
 	auto v = c.lookup_variable("convexity");
@@ -65,11 +65,7 @@ AbstractNode *RenderModule::instantiate(const Context *ctx, const ModuleInstanti
 
 std::string RenderNode::toString() const
 {
-	std::stringstream stream;
-
-	stream << this->name() << "(convexity = " << convexity << ")";
-
-	return stream.str();
+	return STR(this->name() << "(convexity = " << convexity << ")");
 }
 
 void register_builtin_render()

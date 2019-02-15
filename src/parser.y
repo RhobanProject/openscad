@@ -45,11 +45,12 @@
 #include "memory.h"
 #include <sstream>
 #include <boost/filesystem.hpp>
+#include "boost-utils.h"
 
 namespace fs = boost::filesystem;
 
 #define YYMAXDEPTH 20000
-#define LOC(loc) Location(loc.first_line, loc.first_column, loc.last_line, loc.last_column)
+#define LOC(loc) Location(loc.first_line, loc.first_column, loc.last_line, loc.last_column, sourcefile())
   
 int parser_error_pos = -1;
 
@@ -57,7 +58,8 @@ int parserlex(void);
 void yyerror(char const *s);
 
 int lexerget_lineno(void);
-fs::path sourcefile(void);
+std::shared_ptr<fs::path> sourcefile(void);
+void lexer_set_parser_sourcefile(const fs::path& path);
 int lexerlex_destroy(void);
 int lexerlex(void);
 
@@ -66,10 +68,11 @@ FileModule *rootmodule;
 
 extern void lexerdestroy();
 extern FILE *lexerin;
-extern const char *parser_input_buffer;
 const char *parser_input_buffer;
-fs::path parser_sourcefile;
+static fs::path mainFilePath;
+static std::string main_file_folder;
 
+bool fileEnded=false;
 %}
 
 %union {
@@ -85,6 +88,8 @@ fs::path parser_sourcefile;
 }
 
 %token TOK_ERROR
+
+%token TOK_EOT
 
 %token TOK_MODULE
 %token TOK_FUNCTION
@@ -170,7 +175,7 @@ statement:
         | assignment
         | TOK_MODULE TOK_ID '(' arguments_decl optional_commas ')'
             {
-              UserModule *newmodule = new UserModule(LOC(@$));
+              UserModule *newmodule = new UserModule($2, LOC(@$));
               newmodule->definition_arguments = *$4;
               scope_stack.top()->addModule($2, newmodule);
               scope_stack.push(&newmodule->scope);
@@ -189,6 +194,10 @@ statement:
               delete $4;
             }
           ';'
+        | TOK_EOT
+            {
+                fileEnded=true;
+            }
         ;
 
 inner_input:
@@ -202,6 +211,39 @@ assignment:
                 bool found = false;
                 for (auto &assignment : scope_stack.top()->assignments) {
                     if (assignment.name == $1) {
+                        auto mainFile = mainFilePath.string();
+                        auto prevFile = assignment.location().fileName();
+                        auto currFile = LOC(@$).fileName();
+                        
+                        const auto uncPathCurr = boostfs_uncomplete(currFile, mainFilePath.parent_path());
+                        const auto uncPathPrev = boostfs_uncomplete(prevFile, mainFilePath.parent_path());
+                        if(fileEnded){
+                            //assigments via commandline
+                        }else if(prevFile==mainFile && currFile == mainFile){
+                            //both assigments in the mainFile
+                            PRINTB("WARNING: %s was assigned on line %i but was overwritten on line %i",
+                                    assignment.name%
+                                    assignment.location().firstLine()%
+                                    LOC(@$).firstLine());
+                        }else if(uncPathCurr == uncPathPrev){
+                            //assigment overwritten within the same file
+                            //the line number being equal happens, when a file is included multiple times
+                            if(assignment.location().firstLine() != LOC(@$).firstLine()){
+                                PRINTB("WARNING: %s was assigned on line %i of %s but was overwritten on line %i",
+                                        assignment.name%
+                                        assignment.location().firstLine()%
+                                        uncPathPrev%
+                                        LOC(@$).firstLine());
+                            }
+                        }else if(prevFile==mainFile && currFile != mainFile){
+                            //assigment from the mainFile overwritten by an include
+                            PRINTB("WARNING: %s was assigned on line %i of %s but was overwritten on line %i of %s",
+                                    assignment.name%
+                                    assignment.location().firstLine()%
+                                    uncPathPrev%
+                                    LOC(@$).firstLine()%
+                                    uncPathCurr);
+                        }
                         assignment.expr = shared_ptr<Expression>($3);
                         assignment.setLocation(LOC(@$));
                         found = true;
@@ -271,7 +313,7 @@ ifelse_statement:
 if_statement:
           TOK_IF '(' expr ')'
             {
-                $<ifelse>$ = new IfElseModuleInstantiation(shared_ptr<Expression>($3), parser_sourcefile.parent_path().generic_string(), LOC(@$));
+                $<ifelse>$ = new IfElseModuleInstantiation(shared_ptr<Expression>($3), main_file_folder, LOC(@$));
                 scope_stack.push(&$<ifelse>$->scope);
             }
           child_statement
@@ -309,7 +351,7 @@ module_id:
 single_module_instantiation:
           module_id '(' arguments_call ')'
             {
-                $$ = new ModuleInstantiation($1, *$3, parser_sourcefile.parent_path().generic_string(), LOC(@$));
+                $$ = new ModuleInstantiation($1, *$3, main_file_folder, LOC(@$));
                 free($1);
                 delete $3;
             }
@@ -625,23 +667,33 @@ void yyerror (char const *s)
 {
   // FIXME: We leak memory on parser errors...
   PRINTB("ERROR: Parser error in file %s, line %d: %s\n",
-         sourcefile() % lexerget_lineno() % s);
+         (*sourcefile()) % lexerget_lineno() % s);
 }
 
-bool parse(FileModule *&module, const char *text, const fs::path &filename, int debug)
+bool parse(FileModule *&module, const std::string& text, const std::string &filename, const std::string &mainFile, int debug)
 {
+  fs::path parser_sourcefile = fs::absolute(fs::path(filename));
+  main_file_folder = parser_sourcefile.parent_path().generic_string();
+  lexer_set_parser_sourcefile(parser_sourcefile);
+  mainFilePath = mainFile;
+
   lexerin = NULL;
   parser_error_pos = -1;
-  parser_input_buffer = text;
-  parser_sourcefile = fs::absolute(filename);
+  parser_input_buffer = text.c_str();
+  fileEnded=false;
 
-  rootmodule = new FileModule();
-  rootmodule->setModulePath(filename.parent_path().generic_string());
+  rootmodule = new FileModule(main_file_folder, parser_sourcefile.filename().generic_string());
   scope_stack.push(&rootmodule->scope);
   //        PRINTB_NOCACHE("New module: %s %p", "root" % rootmodule);
 
   parserdebug = debug;
-  int parserretval = parserparse();
+  int parserretval = -1;
+  try{
+     parserretval = parserparse();
+  }catch (const HardWarningException &e) {
+    yyerror("stop on first warning");
+  }
+
   lexerdestroy();
   lexerlex_destroy();
 
@@ -649,6 +701,8 @@ bool parse(FileModule *&module, const char *text, const fs::path &filename, int 
   if (parserretval != 0) return false;
 
   parser_error_pos = -1;
+  parser_input_buffer = nullptr;
   scope_stack.pop();
+
   return true;
 }

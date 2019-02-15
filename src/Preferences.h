@@ -12,6 +12,11 @@ class Preferences : public QMainWindow, public Ui::Preferences
 	Q_OBJECT;
 
 public:
+	static constexpr const char* PREF_EDITOR_TYPE = "editor/editortype";
+
+	static constexpr const char* EDITOR_TYPE_SIMPLE = "Simple Editor";
+	static constexpr const char* EDITOR_TYPE_QSCINTILLA = "QScintilla Editor";
+
 	~Preferences();
 	
 	static void create(QStringList colorSchemes);
@@ -20,23 +25,26 @@ public:
 	QVariant getValue(const QString &key) const;
 	void init();
 	void apply() const;
+	void updateGUI();
 	void fireEditorConfigChanged() const;
 
 public slots:
 	void actionTriggered(class QAction *);
 	void featuresCheckBoxToggled(bool);
+	void on_stackedWidget_currentChanged(int);
 	void on_colorSchemeChooser_itemSelectionChanged();
 	void on_fontChooser_activated(const QString &);
 	void on_fontSize_currentIndexChanged(const QString &);
 	void on_syntaxHighlight_activated(const QString &);
 	void on_openCSGWarningBox_toggled(bool);
 	void on_enableOpenCSGBox_toggled(bool);
-	void on_cgalCacheSizeEdit_textChanged(const QString &);
-	void on_polysetCacheSizeEdit_textChanged(const QString &);
+	void on_cgalCacheSizeMBEdit_textChanged(const QString &);
+	void on_polysetCacheSizeMBEdit_textChanged(const QString &);
 	void on_opencsgLimitEdit_textChanged(const QString &);
 	void on_forceGoldfeatherBox_toggled(bool);
 	void on_mouseWheelZoomBox_toggled(bool);
 	void on_localizationCheckBox_toggled(bool);
+	void on_autoReloadRaiseCheckBox_toggled(bool);
 	void on_updateCheckBox_toggled(bool);
 	void on_snapshotCheckBox_toggled(bool);
 	void on_mdiCheckBox_toggled(bool);
@@ -44,9 +52,13 @@ public slots:
 	void on_undockCheckBox_toggled(bool);
 	void on_checkNowButton_clicked();
 	void on_launcherBox_toggled(bool);
-	void on_editorType_currentIndexChanged(const QString &);
-
+	void on_editorType_currentIndexChanged(int);
+	void on_enableSoundOnRenderCompleteCheckBox_toggled(bool);
+	void on_enableHardwarningsCheckBox_toggled(bool);
+	void on_enableParameterCheckBox_toggled(bool);
+	void on_enableRangeCheckBox_toggled(bool);
 	void on_checkBoxShowWarningsIn3dView_toggled(bool);
+	void on_checkBoxMouseCentricZoom_toggled(bool);
   //
 	// editor settings
   //
@@ -71,7 +83,19 @@ public slots:
 	// Display
 	void on_checkBoxHighlightCurrentLine_toggled(bool);
 	void on_checkBoxEnableBraceMatching_toggled(bool);
-    void on_checkBoxEnableLineNumbers_toggled(bool);
+	void on_checkBoxEnableLineNumbers_toggled(bool);
+
+	// Print
+	void on_pushButtonOctoPrintCheckConnection_clicked();
+	void on_pushButtonOctoPrintSlicingEngine_clicked();
+	void on_comboBoxOctoPrintSlicingEngine_activated(int);
+	void on_pushButtonOctoPrintSlicingProfile_clicked();
+	void on_comboBoxOctoPrintSlicingProfile_activated(int);
+	void on_comboBoxOctoPrintAction_activated(int);
+	void on_comboBoxOctoPrintFileFormat_activated(int);
+	void on_lineEditOctoPrintURL_editingFinished();
+	void on_lineEditOctoPrintApiKey_editingFinished();
+	void on_pushButtonOctoPrintApiKey_clicked();
 
 signals:
 	void requestRedraw() const;
@@ -85,14 +109,17 @@ signals:
 	void editorTypeChanged(const QString &type);
 	void editorConfigChanged() const;
 	void ExperimentalChanged() const ;
+	void updateMouseCentricZoom(bool state) const;
 
 private:
     Preferences(QWidget *parent = nullptr);
-	void keyPressEvent(QKeyEvent *e);
-	void updateGUI();
+	void keyPressEvent(QKeyEvent *e) override;
+	void showEvent(QShowEvent *e) override;
+	void closeEvent(QCloseEvent *e) override;
 	void removeDefaultSettings();
 	void setupFeaturesPage();
 	void writeSettings();
+	void hidePasswords();
 	void addPrefPage(QActionGroup *group, QAction *action, QWidget *widget);
 
 	/** Initialize combobox list values from the settings range values */

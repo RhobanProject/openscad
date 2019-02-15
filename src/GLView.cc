@@ -5,6 +5,7 @@
 #include "rendersettings.h"
 #include "printutils.h"
 #include "renderer.h"
+#include "degree_trig.h"
 #include <cmath>
 
 #ifdef _WIN32
@@ -17,10 +18,9 @@
 #include <opencsg.h>
 #endif
 
-#include <boost/lexical_cast.hpp>
-
 GLView::GLView()
 {
+  aspectratio = 1;
   showedges = false;
   showfaces = true;
   showaxes = false;
@@ -67,7 +67,7 @@ void GLView::setColorScheme(const std::string &cs)
     setColorScheme(*colorscheme);
   }
   else {
-    PRINTB("WARNING: GLView: unknown colorscheme %s", cs);
+    PRINTB("UI-WARNING: GLView: unknown colorscheme %s", cs);
   }
 }
 
@@ -92,65 +92,30 @@ void GLView::setupCamera()
 {
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-
-	switch (this->cam.type) {
-	case Camera::CameraType::GIMBAL: {
-		auto dist = cam.zoomValue();
-		switch (this->cam.projection) {
-		case Camera::ProjectionType::PERSPECTIVE: {
-			gluPerspective(cam.fov, aspectratio, 0.1*dist, 100*dist);
-			break;
-		}
-		case Camera::ProjectionType::ORTHOGONAL: {
-			auto height = dist * tan(cam.fov/2*M_PI/180);
-			glOrtho(-height*aspectratio, height*aspectratio,
-							-height, height,
-							-100*dist, +100*dist);
-			break;
-		}
-		}
-		gluLookAt(0.0, -dist, 0.0,
-							0.0, 0.0, 0.0,
-							0.0, 0.0, 1.0);
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		glRotated(cam.object_rot.x(), 1.0, 0.0, 0.0);
-		glRotated(cam.object_rot.y(), 0.0, 1.0, 0.0);
-		glRotated(cam.object_rot.z(), 0.0, 0.0, 1.0);
-		break;
-	}
-	case Camera::CameraType::VECTOR: {
-		auto dist = (cam.center - cam.eye).norm();
-		switch (this->cam.projection) {
-		case Camera::ProjectionType::PERSPECTIVE: {
-			gluPerspective(cam.fov, aspectratio, 0.1*dist, 100*dist);
-			break;
-		}
-		case Camera::ProjectionType::ORTHOGONAL: {
-			auto height = dist * tan(cam.fov/2*M_PI/180);
-			glOrtho(-height*aspectratio, height*aspectratio,
-							-height, height,
-							-100*dist, +100*dist);
-			break;
-		}
-		}
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-
-		Vector3d dir(cam.eye - cam.center);
-		Vector3d up(0.0,0.0,1.0);
-		if (dir.cross(up).norm() < 0.001) { // View direction is ~parallel with up vector
-			up << 0.0,1.0,0.0;
-		}
-
-		gluLookAt(cam.eye[0], cam.eye[1], cam.eye[2],
-							cam.center[0], cam.center[1], cam.center[2],
-							up[0], up[1], up[2]);
+  auto dist = cam.zoomValue();
+  switch (this->cam.projection) {
+	case Camera::ProjectionType::PERSPECTIVE: {
+		gluPerspective(cam.fov, aspectratio, 0.1 * dist, 100 * dist);
 		break;
 	}
 	default:
+	case Camera::ProjectionType::ORTHOGONAL: {
+		auto height = dist * tan_degrees(cam.fov / 2);
+		glOrtho(-height * aspectratio, height * aspectratio,
+		        -height, height,
+		        -100 * dist, +100 * dist);
 		break;
 	}
+  }
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+  gluLookAt(0.0, -dist, 0.0,      // eye
+            0.0, 0.0,   0.0,      // center
+            0.0, 0.0,   1.0);     // up
+
+  glRotated(cam.object_rot.x(), 1.0, 0.0, 0.0);
+  glRotated(cam.object_rot.y(), 0.0, 1.0, 0.0);
+  glRotated(cam.object_rot.z(), 0.0, 0.0, 1.0);
 }
 
 void GLView::paintGL()
@@ -159,20 +124,18 @@ void GLView::paintGL()
 
   auto bgcol = ColorMap::getColor(*this->colorscheme, RenderColor::BACKGROUND_COLOR);
   auto axescolor = ColorMap::getColor(*this->colorscheme, RenderColor::AXES_COLOR);
+  auto crosshaircol = ColorMap::getColor(*this->colorscheme, RenderColor::CROSSHAIR_COLOR);
   glClearColor(bgcol[0], bgcol[1], bgcol[2], 1.0);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
   setupCamera();
-  if (this->cam.type == Camera::CameraType::GIMBAL) {
-    // Only for GIMBAL cam
-    // The crosshair should be fixed at the center of the viewport...
-    if (showcrosshairs) GLView::showCrosshairs();
-    glTranslated(cam.object_trans.x(), cam.object_trans.y(), cam.object_trans.z());
-    // ...the axis lines need to follow the object translation.
-    if (showaxes) GLView::showAxes(axescolor);
-    // mark the scale along the axis lines
-    if (showaxes && showscale) GLView::showScalemarkers(axescolor);
-  }
+  // The crosshair should be fixed at the center of the viewport...
+  if (showcrosshairs) GLView::showCrosshairs(crosshaircol);
+  glTranslated(cam.object_trans.x(), cam.object_trans.y(), cam.object_trans.z());
+  // ...the axis lines need to follow the object translation.
+  if (showaxes) GLView::showAxes(axescolor);
+  // mark the scale along the axis lines
+  if (showaxes && showscale) GLView::showScalemarkers(axescolor);
 
   glEnable(GL_LIGHTING);
   glDepthFunc(GL_LESS);
@@ -189,7 +152,6 @@ void GLView::paintGL()
     this->renderer->draw(showfaces, showedges);
   }
 
-  // Only for GIMBAL
   glDisable(GL_LIGHTING);
   if (showaxes) GLView::showSmallaxes(axescolor);
 }
@@ -351,9 +313,11 @@ void GLView::initializeGL()
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   GLfloat light_diffuse[] = {1.0, 1.0, 1.0, 1.0};
-  GLfloat light_position0[] = {-1.0, -1.0, +1.0, 0.0};
-  GLfloat light_position1[] = {+1.0, +1.0, -1.0, 0.0};
+  GLfloat light_position0[] = {-1.0, +1.0, +1.0, 0.0};
+  GLfloat light_position1[] = {+1.0, -1.0, -1.0, 0.0};
 
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
   glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
   glLightfv(GL_LIGHT0, GL_POSITION, light_position0);
   glEnable(GL_LIGHT0);
@@ -374,18 +338,16 @@ void GLView::initializeGL()
 
 void GLView::showSmallaxes(const Color4f &col)
 {
-  // Fixme - this doesnt work in Vector Camera mode
-
-	auto dpi = this->getDPI();
+  auto dpi = this->getDPI();
   // Small axis cross in the lower left corner
   glDepthFunc(GL_ALWAYS);
 
 	// Set up an orthographic projection of the axis cross in the corner
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
-	glTranslatef(-0.8f, -0.8f, 0.0f);
-	auto scale = 90;
-	glOrtho(-scale*dpi*aspectratio,scale*dpi*aspectratio,
+  glTranslatef(-0.8f, -0.8f, 0.0f);
+  auto scale = 90;
+  glOrtho(-scale*dpi*aspectratio,scale*dpi*aspectratio,
 					-scale*dpi,scale*dpi,
 					-scale*dpi,scale*dpi);
   gluLookAt(0.0, -1.0, 0.0,
@@ -451,8 +413,6 @@ void GLView::showSmallaxes(const Color4f &col)
   glVertex3d(zlabel_x-d, zlabel_y-d, 0); glVertex3d(zlabel_x+d, zlabel_y-d, 0);
   glVertex3d(zlabel_x-d, zlabel_y+d, 0); glVertex3d(zlabel_x+d, zlabel_y+d, 0);
   glVertex3d(zlabel_x-d, zlabel_y-d, 0); glVertex3d(zlabel_x+d, zlabel_y+d, 0);
-  // FIXME - depends on gimbal camera 'viewer distance'.. how to fix this
-  //         for VectorCamera?
   glEnd();
 }
 
@@ -460,7 +420,6 @@ void GLView::showAxes(const Color4f &col)
 {
   auto l = cam.zoomValue();
   
-  // FIXME: doesn't work under Vector Camera
   // Large gray axis cross inline with the model
   glLineWidth(this->getDPI());
   glColor3f(col[0], col[1], col[2]);
@@ -488,11 +447,9 @@ void GLView::showAxes(const Color4f &col)
   glPopAttrib();
 }
 
-void GLView::showCrosshairs()
+void GLView::showCrosshairs(const Color4f &col)
 {
-  // FIXME: this might not work with Vector camera
   glLineWidth(this->getDPI());
-  auto col = ColorMap::getColor(*this->colorscheme, RenderColor::CROSSHAIR_COLOR);
   glColor3f(col[0], col[1], col[2]);
   glBegin(GL_LINES);
   for (double xf = -1; xf <= +1; xf += 2)
@@ -506,42 +463,54 @@ void GLView::showCrosshairs()
 
 void GLView::showScalemarkers(const Color4f &col)
 {
-	// Add scale tics on large axes
+	// Add scale ticks on large axes
 	auto l = cam.zoomValue();
 	glLineWidth(this->getDPI());
 	glColor3f(col[0], col[1], col[2]);
 
-	// determine the log value to provide proportional tics
-	auto log_l = static_cast<int>(log10(l));
+	// Take log of l, discretize, then exponentiate. This is done so that the tick
+	// denominations change every time the viewport gets 10x bigger or smaller,
+	// but stays constant in-between. l_adjusted is a step function of l.
+	const int log_l = static_cast<int>(floor(log10(l)));
+	const double l_adjusted = pow(10, log_l);
 
-	// j represents the increment for each minor tic
-	auto j = 10.0;
-	// deal with 0 log values
-	if (l < 1.5){
-		j = pow(10,log_l-2);
-	} else {
-		j = pow(10,log_l-1);
-	}
+	// Calculate tick width.
+	const double tick_width = l_adjusted / 10.0;
 
-	int size_div_sm = 60;       // divisor for l to determine minor tic size
-	int size_div = size_div_sm;
+	const int size_div_sm = 60; // divisor for l to determine minor tick size
 	int line_cnt = 0;
-
-	for (double i=0;i<l;i+=j){      // i represents the position along the axis
-		if (line_cnt++ == 10){      // major tic
-			size_div = size_div_sm * .5; // resize to a major tic
-			line_cnt = 1;                // reset the major tic counter
+	for (double i=0; i<l; i+=tick_width){ // i represents the position along the axis
+		int size_div;
+		if (line_cnt > 0 && line_cnt % 10 == 0){ // major tick
+			size_div = size_div_sm * .5; // resize to a major tick
 			GLView::decodeMarkerValue(i, l, size_div_sm);    // print number
-		} else {                    // minor tic
-			size_div = size_div_sm;      // set the minor tic to the standard size
+		} else {                    // minor tick
+			size_div = size_div_sm;      // set the minor tick to the standard size
+
+			// Draw additional labels if there are few major tick labels visible due to
+			// zoom. Because the spacing/units of major tick marks only change when the
+			// viewport changes size by a factor of 10, it can be hard to see the
+			// major tick labels when when the viewport is slightly larger than size at
+			// which the last tick spacing change occurred. When zoom level is such
+			// that very few major tick marks are visible, additional labels are drawn
+			// every 2 minor ticks. We can detect that very few major ticks are visible
+			// by checking if the viewport size is larger than the adjusted scale by
+			// only a small ratio.
+			const double more_labels_threshold = 3;
+			// draw additional labels every 2 minor ticks
+			const int more_labels_freq = 2;
+			if (line_cnt > 0 && line_cnt % more_labels_freq == 0 && l / l_adjusted < more_labels_threshold) {
+				GLView::decodeMarkerValue(i, l, size_div_sm);    // print number
+			}
 		}
+		line_cnt++;
 
 		/*
-		 * The length of each tic is proportional to the length of the axis
+		 * The length of each tick is proportional to the length of the axis
 		 * (which changes with the zoom value.)  l/size_div provides the
 		 * proportional length
 		 *
-		 * Commented glVertex3d lines provide additional 'arms' for the tic
+		 * Commented glVertex3d lines provide additional 'arms' for the tick
 		 * the number of arms will (hopefully) eventually be driven via Preferences
 		 */
 
@@ -589,12 +558,9 @@ void GLView::showScalemarkers(const Color4f &col)
 
 void GLView::decodeMarkerValue(double i, double l, int size_div_sm)
 {
-	// convert the axis position to a string
-	std::ostringstream oss;
-	oss << i;
-	auto digit = oss.str();
+	const auto unsigned_digit = STR(i);
 
-	// setup how far above the axis (or tic TBD) to draw the number
+	// setup how far above the axis (or tick TBD) to draw the number
 	double dig_buf = (l/size_div_sm)/4;
 	// setup the size of the character box
 	double dig_w = (l/size_div_sm)/2;
@@ -612,7 +578,7 @@ void GLView::decodeMarkerValue(double i, double l, int size_div_sm)
 		{1,0,2},
 		{1,2,0}};
 
-	// set up character vertex seqeunces for different axes
+	// set up character vertex sequences for different axes
 	int or_2[6][6]={
 		{0,1,3,2,4,5},
 		{1,0,2,3,5,4},
@@ -677,16 +643,15 @@ void GLView::decodeMarkerValue(double i, double l, int size_div_sm)
 		{1,0,2,3,2,4,5},
 		{1,0,2,3,2,4,5}};
 
-	auto stash_digit = digit;
-
 	// walk through axes
 	for (int di=0;di<6;di++){
 
 		// setup negative axes
 		double polarity = 1;
+		auto digit = unsigned_digit;
 		if (di>2){
 			polarity = -1;
-			digit = "-" + stash_digit;
+			digit.insert(0, "-");
 		}
 
 		// fix the axes that need to run the opposite direction

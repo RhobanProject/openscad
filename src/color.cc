@@ -32,6 +32,7 @@
 #include "printutils.h"
 #include <sstream>
 #include <assert.h>
+#include <iterator>
 #include <unordered_map>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/assign/std/vector.hpp>
@@ -42,8 +43,8 @@ class ColorModule : public AbstractModule
 {
 public:
 	ColorModule();
-	virtual ~ColorModule();
-	virtual AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const;
+	~ColorModule();
+	AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const override;
 
 private:
 	static std::unordered_map<std::string, Color4f> webcolors;
@@ -213,6 +214,45 @@ ColorModule::~ColorModule()
 {
 }
 
+// Parses hex colors according to: https://drafts.csswg.org/css-color/#typedef-hex-color.
+// If the input is invalid, returns boost::none.
+// Supports the following formats:
+// * "#rrggbb"
+// * "#rrggbbaa"
+// * "#rgb"
+// * "#rgba"
+boost::optional<Color4f> parse_hex_color(const std::string& hex) {
+	// validate size. short syntax uses one hex digit per color channel instead of 2.
+	const bool short_syntax = hex.size() == 4 || hex.size() == 5;
+	const bool long_syntax = hex.size() == 7 || hex.size() == 9;
+	if (!short_syntax && !long_syntax) return boost::none;
+
+	// validate
+	if (hex[0] != '#') return boost::none;
+	if (!std::all_of(std::begin(hex)+1, std::end(hex),
+					[](char c) {
+						return std::isxdigit(static_cast<unsigned char>(c));
+					})) {
+		return boost::none;
+	}
+
+	// number of characters per color channel
+	const int stride = short_syntax ? 1 : 2;
+	const float channel_max = short_syntax ? 15 : 255;
+
+	Color4f rgba;
+	rgba[3] = 1.0; // default alpha to 100%
+
+	for (unsigned i = 0; i < (hex.size() - 1) / stride; i++) {
+		const std::string chunk = hex.substr(1 + i*stride, stride);
+
+		// convert the hex character(s) from base 16 to base 10
+		rgba[i] = stoi(chunk, nullptr, 16) / channel_max;
+	}
+
+	return rgba;
+}
+
 AbstractNode *ColorModule::instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const
 {
 	auto node = new ColorNode(inst);
@@ -220,15 +260,16 @@ AbstractNode *ColorModule::instantiate(const Context *ctx, const ModuleInstantia
 	AssignmentList args{Assignment("c"), Assignment("alpha")};
 
 	Context c(ctx);
-	c.setVariables(args, evalctx);
+	c.setVariables(evalctx, args);
 	inst->scope.apply(*evalctx);
 
 	auto v = c.lookup_variable("c");
 	if (v->type() == Value::ValueType::VECTOR) {
 		for (size_t i = 0; i < 4; i++) {
 			node->color[i] = i < v->toVector().size() ? v->toVector()[i]->toDouble() : 1.0;
-			if (node->color[i] > 1)
-				PRINTB_NOCACHE("WARNING: color() expects numbers between 0.0 and 1.0. Value of %.1f is too large.", node->color[i]);
+			if (node->color[i] > 1 || node->color[i] < 0){
+				PRINTB_NOCACHE("WARNING: color() expects numbers between 0.0 and 1.0. Value of %.1f is out of range, %s", node->color[i] % inst->location().toRelativeString(ctx->documentPath()));
+			}
 		}
 	} else if (v->type() == Value::ValueType::STRING) {
 		auto colorname = v->toString();
@@ -236,8 +277,14 @@ AbstractNode *ColorModule::instantiate(const Context *ctx, const ModuleInstantia
 		if (webcolors.find(colorname) != webcolors.end())	{
 			node->color = webcolors.at(colorname);
 		} else {
-			PRINTB_NOCACHE("WARNING: Color name \"%s\" unknown. Please see", colorname);
-			PRINT_NOCACHE("WARNING: http://en.wikipedia.org/wiki/Web_colors");
+			// Try parsing it as a hex color such as "#rrggbb".
+			const auto hexColor = parse_hex_color(colorname);
+			if (hexColor) {
+				node->color = *hexColor;
+			} else {
+				PRINTB_NOCACHE("WARNING: Unable to parse color \"%s\", %s. ", colorname % inst->location().toRelativeString(ctx->documentPath()));
+				PRINT_NOCACHE("WARNING: Please see https://en.wikipedia.org/wiki/Web_colors");
+			}
 		}
 	}
 	auto alpha = c.lookup_variable("alpha");
@@ -253,11 +300,7 @@ AbstractNode *ColorModule::instantiate(const Context *ctx, const ModuleInstantia
 
 std::string ColorNode::toString() const
 {
-	std::stringstream stream;
-
-	stream << "color([" << this->color[0] << ", " << this->color[1] << ", " << this->color[2] << ", " << this->color[3] << "])";
-
-	return stream.str();
+	return STR("color([" << this->color[0] << ", " << this->color[1] << ", " << this->color[2] << ", " << this->color[3] << "])");
 }
 
 std::string ColorNode::name() const

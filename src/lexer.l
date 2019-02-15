@@ -55,7 +55,6 @@ int lexerget_lineno(void);
 static void yyunput(int, char*) __attribute__((unused));
 #endif
 extern const char *parser_input_buffer;
-extern fs::path parser_sourcefile;
 extern FileModule *rootmodule;
 
 #define YY_INPUT(buf,result,max_size) {   \
@@ -96,15 +95,15 @@ int yycolumn = 1;
 extern void parsererror(char const *s);
 void to_utf8(const char *, char *);
 void includefile();
-fs::path sourcefile();
-std::vector<fs::path> filename_stack;
+std::shared_ptr<fs::path> sourcefile();
+std::shared_ptr<fs::path> parser_sourcefile;
+std::vector<std::shared_ptr<fs::path>> filename_stack;
 std::vector<int> lineno_stack;
 std::vector<FILE*> openfiles;
 std::vector<std::string> openfilenames;
 
 std::string filename;
 std::string filepath;
-
 %}
 
 %option yylineno
@@ -140,7 +139,7 @@ use[ \t\r\n]*"<"	{ BEGIN(cond_use); }
 [^\t\r\n>]+	{ filename = yytext; }
  ">"		{
 	BEGIN(INITIAL);
-        fs::path fullpath = find_valid_path(sourcefile().parent_path(), fs::path(filename), &openfilenames);
+        fs::path fullpath = find_valid_path(sourcefile()->parent_path(), fs::path(filename), &openfilenames);
 	if (fullpath.empty()) {
           PRINTB("WARNING: Can't open library '%s'.", filename);
           parserlval.text = strdup(filename.c_str());
@@ -206,6 +205,8 @@ use[ \t\r\n]*"<"	{ BEGIN(cond_use); }
 		yyterminate();
 }
 
+"\x03"		return TOK_EOT;
+
 "module"	return TOK_MODULE;
 "function"	return TOK_FUNCTION;
 "if"		return TOK_IF;
@@ -236,7 +237,7 @@ use[ \t\r\n]*"<"	{ BEGIN(cond_use); }
                             try {
                                 parserlval.number = boost::lexical_cast<double>(yytext);
                                 return TOK_NUMBER;
-                            } catch (boost::bad_lexical_cast) {}
+                            } catch (boost::bad_lexical_cast&) {}
                         }
 "$"?[a-zA-Z0-9_]+       { parserlval.text = strdup(yytext); return TOK_ID; }
 
@@ -267,8 +268,13 @@ void to_utf8(const char *str, char *out)
     }
 }
 
+void lexer_set_parser_sourcefile(const fs::path& path)
+{
+    parser_sourcefile = std::make_shared<fs::path>(path);
+}
+
 // Filename of the source file currently being lexed.
-fs::path sourcefile()
+std::shared_ptr<fs::path>  sourcefile()
 {
   if (!filename_stack.empty()) return filename_stack.back();
 
@@ -285,7 +291,7 @@ fs::path sourcefile()
 void includefile()
 {
   fs::path localpath = fs::path(filepath) / filename;
-  fs::path fullpath = find_valid_path(sourcefile().parent_path(), localpath, &openfilenames);
+  fs::path fullpath = find_valid_path(sourcefile()->parent_path(), localpath, &openfilenames);
   if (!fullpath.empty()) {
     rootmodule->registerInclude(localpath.generic_string(), fullpath.generic_string());
   }
@@ -298,7 +304,7 @@ void includefile()
   std::string fullname = fullpath.generic_string();
 
   filepath.clear();
-  filename_stack.push_back(fullpath);
+  filename_stack.push_back(std::make_shared<fs::path>(fullpath));
 
   handle_dep(fullname);
 
