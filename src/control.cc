@@ -32,6 +32,7 @@
 #include "expression.h"
 #include "builtin.h"
 #include "printutils.h"
+#include "markernode.h"
 #include <cstdint>
 #include <sstream>
 
@@ -47,7 +48,8 @@ public: // types
 		FOR,
 		LET,
 		INT_FOR,
-		IF
+		IF,
+                MARKER
     };
 public: // methods
 	ControlModule(Type type) : type(type) { }
@@ -259,13 +261,32 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 	}
 		break;
 
-	case Type::ECHO: {
+        case Type::MARKER:
+        case Type::ECHO: {
 		node = new GroupNode(inst);
 		std::stringstream msg;
-		msg << "ECHO: " << *evalctx;
-		PRINTB("%s", msg.str());
-	}
-		break;
+                if (type == Type::ECHO) {
+                    msg << "ECHO: ";
+                }
+                for (size_t i = 0; i < inst->arguments.size(); i++) {
+                    if (i > 0) msg << ", ";
+                    if (!evalctx->getArgName(i).empty()) msg << evalctx->getArgName(i) << " = ";
+                    ValuePtr val = evalctx->getArgValue(i);
+                    if (val->type() == Value::ValueType::STRING) {
+                        msg << '"' << val->toString() << '"';
+                    } else {
+                        msg << val->toString();
+                    }
+                }
+                if (type == Type::ECHO) {
+                    PRINTB("%s", msg.str());
+                } else {
+                    MarkerNode *markernode = new MarkerNode(inst);
+                    markernode->value = msg.str();
+                    node = markernode;
+                }
+	    }
+            break;
 
 	case Type::ASSERT: {
 		node = new GroupNode(inst);
@@ -345,4 +366,5 @@ void register_builtin_control()
 	Builtins::init("let", new ControlModule(ControlModule::Type::LET));
 	Builtins::init("intersection_for", new ControlModule(ControlModule::Type::INT_FOR));
 	Builtins::init("if", new ControlModule(ControlModule::Type::IF));
+	Builtins::init("marker", new ControlModule(ControlModule::Type::MARKER));
 }
