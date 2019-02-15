@@ -34,7 +34,6 @@
 #include "printutils.h"
 #include "markernode.h"
 #include <cstdint>
-#include <sstream>
 
 class ControlModule : public AbstractModule
 {
@@ -56,7 +55,7 @@ public: // methods
 
 	ControlModule(Type type, const Feature& feature) : AbstractModule(feature), type(type) { }
 
-	virtual AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const;
+	AbstractNode *instantiate(const Context *ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const override;
 
 	static void for_eval(AbstractNode &node, const ModuleInstantiation &inst, size_t l, 
 						 const Context *ctx, const EvalContext *evalctx);
@@ -81,7 +80,7 @@ void ControlModule::for_eval(AbstractNode &node, const ModuleInstantiation &inst
 			RangeType range = it_values->toRange();
 			uint32_t steps = range.numValues();
 			if (steps >= 10000) {
-				PRINTB("WARNING: Bad range parameter in for statement: too many elements (%lu).", steps);
+				PRINTB("WARNING: Bad range parameter in for statement: too many elements (%lu), %s", steps % inst.location().toRelativeString(ctx->documentPath()));
 			} else {
 				for (RangeType::iterator it = range.begin();it != range.end();it++) {
 					c.set_variable(it_name, ValuePtr(*it));
@@ -95,6 +94,12 @@ void ControlModule::for_eval(AbstractNode &node, const ModuleInstantiation &inst
 				for_eval(node, inst, l+1, &c, evalctx);
 			}
 		}
+                else if (it_values->type() == Value::ValueType::STRING) {
+                        utf8_split(it_values->toString(), [&](ValuePtr v) {
+                            c.set_variable(it_name, v);
+                            for_eval(node, inst, l+1, &c, evalctx);
+                        });
+                }
 		else if (it_values->type() != Value::ValueType::UNDEFINED) {
 			c.set_variable(it_name, it_values);
 			for_eval(node, inst, l+1, &c, evalctx);
@@ -163,7 +168,7 @@ AbstractNode* ControlModule::getChild(const ValuePtr &value, const EvalContext* 
 	return modulectx->getChild(n)->evaluate(modulectx);
 }
 
-AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleInstantiation *inst, EvalContext *evalctx) const
+AbstractNode *ControlModule::instantiate(const Context* ctx, const ModuleInstantiation *inst, EvalContext *evalctx) const
 {
 	AbstractNode *node = nullptr;
 
@@ -176,7 +181,7 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 			if (evalctx->getArgValue(0)->getDouble(v)) {
 				n = trunc(v);
 				if (n < 0) {
-					PRINTB("WARNING: Negative child index (%d) not allowed", n);
+					PRINTB("WARNING: Negative child index (%d) not allowed, %s", n % evalctx->loc.toRelativeString(ctx->documentPath()));
 					return nullptr; // Disallow negative child indices
 				}
 			}
@@ -195,8 +200,8 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 		else {
 			// How to deal with negative objects in this case?
             // (e.g. first child of difference is invalid)
-			PRINTB("WARNING: Child index (%d) out of bounds (%d children)", 
-				   n % modulectx->numChildren());
+			PRINTB("WARNING: Child index (%d) out of bounds (%d children), %s", 
+				   n % modulectx->numChildren() % evalctx->loc.toRelativeString(ctx->documentPath()));
 		}
 		return node;
 	}
@@ -239,7 +244,7 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 				RangeType range = value->toRange();
 				uint32_t steps = range.numValues();
 				if (steps >= 10000) {
-					PRINTB("WARNING: Bad range parameter for children: too many elements (%lu).", steps);
+					PRINTB("WARNING: Bad range parameter for children: too many elements (%lu), %s", steps  % evalctx->loc.toRelativeString(ctx->documentPath()));
 					return nullptr;
 				}
 				AbstractNode* node = new GroupNode(inst);
@@ -253,7 +258,7 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 			else {
 				// Invalid parameter
 				// (e.g. first child of difference is invalid)
-				PRINTB("WARNING: Bad parameter type (%s) for children, only accept: empty, number, vector, range.", value->toString());
+				PRINTB("WARNING: Bad parameter type (%s) for children, only accept: empty, number, vector, range, %s", value->toEchoString() % evalctx->loc.toRelativeString(ctx->documentPath()));
 				return nullptr;
 			}
 		}
@@ -263,7 +268,6 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 
         case Type::MARKER:
         case Type::ECHO: {
-		node = new GroupNode(inst);
 		std::stringstream msg;
                 if (type == Type::ECHO) {
                     msg << "ECHO: ";
@@ -279,6 +283,7 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
                     }
                 }
                 if (type == Type::ECHO) {
+		    node = new GroupNode(inst);
                     PRINTB("%s", msg.str());
                 } else {
                     MarkerNode *markernode = new MarkerNode(inst);
@@ -292,7 +297,7 @@ AbstractNode *ControlModule::instantiate(const Context* /*ctx*/, const ModuleIns
 		node = new GroupNode(inst);
 
 		Context c(evalctx);
-		evaluate_assert(c, evalctx, inst->location());
+		evaluate_assert(c, evalctx);
 		inst->scope.apply(c);
 		node->children = inst->instantiateChildren(&c);
 	}
@@ -360,11 +365,11 @@ void register_builtin_control()
 	Builtins::init("child", new ControlModule(ControlModule::Type::CHILD));
 	Builtins::init("children", new ControlModule(ControlModule::Type::CHILDREN));
 	Builtins::init("echo", new ControlModule(ControlModule::Type::ECHO));
-	Builtins::init("assert", new ControlModule(ControlModule::Type::ASSERT, Feature::ExperimentalAssertExpression));
+	Builtins::init("marker", new ControlModule(ControlModule::Type::MARKER));
+	Builtins::init("assert", new ControlModule(ControlModule::Type::ASSERT));
 	Builtins::init("assign", new ControlModule(ControlModule::Type::ASSIGN));
 	Builtins::init("for", new ControlModule(ControlModule::Type::FOR));
 	Builtins::init("let", new ControlModule(ControlModule::Type::LET));
 	Builtins::init("intersection_for", new ControlModule(ControlModule::Type::INT_FOR));
 	Builtins::init("if", new ControlModule(ControlModule::Type::IF));
-	Builtins::init("marker", new ControlModule(ControlModule::Type::MARKER));
 }

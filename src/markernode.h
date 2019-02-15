@@ -9,7 +9,7 @@ class MarkerNode : public AbstractNode
         VISITABLE();
 
         MarkerNode(const ModuleInstantiation *mi) : AbstractNode(mi) { }
-        virtual std::string name() const { return "marker"; }
+        virtual std::string name() const override { return "marker"; }
         virtual std::string toString() const;
 
         std::string value;

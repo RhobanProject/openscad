@@ -13,6 +13,7 @@ class NodeVisitor :
 	public Visitor<class RootNode>,
 	public Visitor<class LeafNode>,
 	public Visitor<class CgaladvNode>,
+	public Visitor<class MarkerNode>,
 	public Visitor<class CsgOpNode>,
 	public Visitor<class LinearExtrudeNode>,
 	public Visitor<class RotateExtrudeNode>,
@@ -82,6 +83,9 @@ public:
 		return visit(state, (const class AbstractNode &)node);
 	}
   Response visit(class State &state, const class ColorNode &node) override {
+		return visit(state, (const class AbstractNode &)node);
+	}
+  Response visit(class State &state, const class MarkerNode &node) override {
 		return visit(state, (const class AbstractNode &)node);
 	}
   Response visit(class State &state, const class OffsetNode &node) override {
